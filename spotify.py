@@ -45,13 +45,26 @@ import numpy as np
 import seaborn as sns
 
 import matplotlib.pyplot as plt
-import matplotlib.mlab as mlab
-import matplotlib
+from sklearn import model_selection
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
+from sklearn.linear_model import Lasso
+from sklearn.linear_model import ElasticNet
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.svm import SVR
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+
 plt.style.use('ggplot')
-from matplotlib.pyplot import figure
 
 """# Data Preprocessing"""
-
+pd.set_option('display.max_rows', 500)
+pd.set_option('display.max_columns', 500)
+pd.set_option('display.width', 1000)
 df = pd.read_csv("Spotify-2000.csv")
 df.head()
 
@@ -91,8 +104,121 @@ def create_histogram(dataFrame):
         plt.show()
 
 
+def univariate(dataFrame):
+    for col in dataFrame.columns:
+        print('-' * 70 + "\n")
+        dfNew = pd.crosstab(index=dataFrame[col], columns='count')
+        dfNew = dfNew.sort_values(['count'], ascending=False)
+        print(dfNew.head())
+
+
 data_set_info(dataFrame=df)
 print_missing_percentage(dataFrame=df)
 # create_histogram(dataFrame=df)
 # print(df["Year"].describe())
 df = data_set_clean(dataFrame=df)
+
+# univariate(df)
+
+dfCorr = df.drop('Index', axis=1).corr()
+sns.heatmap(dfCorr, annot=True)
+plt.rcParams["figure.figsize"] = [16, 9]
+plt.show()
+# df['Top Genre'].replace(to_replace='.*rock$', value='rock', inplace=True, regex=True)
+# df['Top Genre'].replace(to_replace='.*pop$', value='pop', inplace=True, regex=True)
+# df['Top Genre'].replace(to_replace='.*hip.*hop$', value='hip hop', inplace=True, regex=True)
+# df['Top Genre'].replace(to_replace='.*indie$', value='indie', inplace=True, regex=True)
+# df['Top Genre'].replace(to_replace='.*metal$', value='metal', inplace=True, regex=True)
+# df['Top Genre'].replace(to_replace='.*funk$', value='funk', inplace=True, regex=True)
+# df['Top Genre'].replace(to_replace='.*country$', value='country', inplace=True, regex=True)
+# df['Top Genre'].replace(to_replace='.*jazz$', value='jazz', inplace=True, regex=True)
+# df['Top Genre'].replace(to_replace='.*dance$', value='dance', inplace=True, regex=True)
+
+dfGenres = pd.crosstab(index=df['Top Genre'], columns='count')
+dfGenres = dfGenres.sort_values(['count'], ascending=False)
+print(dfGenres.head())
+
+dfRock = df.loc[df['Top Genre'] == 'rock']
+print(dfRock[:30])
+print(df.loc[df['Top Genre'] == 'rock'].describe())
+dfPopularity = df[["Top Genre", "Popularity"]]
+dfPopularity = dfPopularity.sort_values(['Popularity'], ascending=False)
+print(dfPopularity[:30])
+print(dfPopularity.describe())
+print(df.groupby("Top Genre", as_index=False)["Popularity"].mean().sort_values(["Popularity"], ascending=False))
+dfYearBpm = df.groupby("Year", as_index=False)["Beats Per Minute (BPM)"].mean().sort_values(["Year"], ascending=False)
+print(df.groupby("Artist", as_index=False)["Popularity"].mean().sort_values(["Popularity"], ascending=False))
+print(df[df['Year'].between(1960, 1963)])
+
+# df.plot(kind='scatter', x="Year", y="Beats Per Minute (BPM)")
+# dfYearBpm.plot(kind='line', x="Year", y="Beats Per Minute (BPM)")
+
+ax = df.plot.scatter(x="Year", y="Beats Per Minute (BPM)", style='b')
+dfYearBpm.plot.line(x="Year", y="Beats Per Minute (BPM)", ax=ax, style='g')
+plt.show()
+
+dfYearLoud = df.groupby("Year", as_index=False)["Loudness (dB)"].mean()
+dfYearLoud.plot.line(x="Year", y="Loudness (dB)", style='b')
+plt.show()
+
+dfYearPop = df.groupby("Year", as_index=False)["Popularity"].mean()
+dfYearPop.plot.line(x="Year", y="Popularity")
+plt.show()
+
+cols_to_remove = []
+
+#df = df.drop(['Title', 'Artist', 'Length (Duration)'], axis=1)
+
+
+genre_dict = dict(zip(df['Top Genre'], df['Top Genre']))
+title_dict = dict(zip(df['Title'], df['Title']))
+artist_dict = dict(zip(df['Artist'], df['Artist']))
+length_dict = dict(zip(df['Length (Duration)'], df['Length (Duration)']))
+
+# index = 0
+# for k, v in area_dict.items():
+#     area_dict[k] = index
+#     index += 1
+
+
+def replaceindict(dictToEdit):
+    index = 0
+    for k, v in dictToEdit.items():
+        dictToEdit[k] = index
+        index += 1
+
+
+replaceindict(genre_dict)
+replaceindict(title_dict)
+replaceindict(artist_dict)
+replaceindict(length_dict)
+
+print(genre_dict)
+
+df['Top Genre'].replace(genre_dict, inplace=True)
+df['Title'].replace(title_dict, inplace=True)
+df['Artist'].replace(artist_dict, inplace=True)
+df['Length (Duration)'].replace(length_dict, inplace=True)
+
+target_column = ['Energy']
+predictors = list(set(list(df.columns)) - set(target_column))
+df[predictors] = df[predictors] / df[predictors].max()
+print(df.describe())
+
+X = df[predictors].values
+y = df[target_column].values
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.30, random_state=40)
+print(X_train.shape)
+print(X_test.shape)
+
+lr = LinearRegression()
+lr.fit(X_train, y_train)
+
+pred_train_lr = lr.predict(X_train)
+print(np.sqrt(mean_squared_error(y_train, pred_train_lr)))
+print(r2_score(y_train, pred_train_lr))
+
+pred_test_lr = lr.predict(X_test)
+print(np.sqrt(mean_squared_error(y_test, pred_test_lr)))
+print(r2_score(y_test, pred_test_lr))
